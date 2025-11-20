@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Engineering Calculator</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+<h1>Engineering Calculator</h1>
+
+<select id="mainMenu" onchange="switchMenu()">
+    <option value="conversion">Unit Conversion</option>
+    <option value="compute">Mechanical Computation</option>
+</select>
+
+<hr>
+
+<!-- UNIT CONVERSION -->
+<div id="conversionSection">
+    <div class="section-title">Unit Conversion</div>
+
+    <label>Category:</label>
+    <select id="category" onchange="loadUnits()"></select>
+
+    <br>
+
+    <label>Value:</label>
+    <input id="value">
+
+    <label>From:</label>
+    <select id="unitFrom"></select>
+
+    <label>To:</label>
+    <select id="unitTo"></select>
+
+    <br>
+    <button onclick="convert()">Convert</button>
+
+    <div class="result" id="convResult"></div>
+</div>
+
+<!-- MECHANICAL COMPUTATION -->
+<div id="computeSection" style="display:none;">
+    <div class="section-title">Mechanical Computation</div>
+
+    <label>Select Formula:</label>
+    <select id="computeSelect" onchange="loadInputs()">
+        <option value="F=ma">Force (F = m × a)</option>
+        <option value="T=Fr">Torque (T = F × r)</option>
+        <option value="σ=F/A">Stress (σ = F / A)</option>
+        <option value="P=Fv">Power (P = F × v)</option>
+        <option value="W=Fd">Work (W = F × d)</option>
+        <option value="KE=1/2mv2">Kinetic Energy (½mv²)</option>
+        <option value="PE=mgh">Potential Energy (mgh)</option>
+        <option value="a=F/m">Acceleration (a = F / m)</option>
+        <option value="w=v/r">Angular Velocity (ω = v / r)</option>
+        <option value="Fc=mv2/r">Centripetal Force (Fc = mv² / r)</option>
+    </select>
+
+    <div id="inputs"></div>
+
+    <button onclick="compute()">Compute</button>
+
+    <div class="result" id="computeResult"></div>
+</div>
+
+</div>
+
+<script>
+/* ------------------ UNIT LISTS ------------------ */
+const units = {
+    Length: ["m","cm","km","in","ft","yd","mile"],
+    Weight: ["kg","g","lb","oz"],
+    Temperature: ["C","F","K"],
+    Time: ["s","min","hr","day"],
+    Area: ["m2","cm2","km2","acre"],
+    Volume: ["L","mL","m3","cm3","gal"],
+    Pressure: ["Pa","kPa","MPa","GPa","atm","bar","psi"],
+    Energy: ["J","kJ","cal","kcal"],
+    Speed: ["m/s","km/h","mph"]
+};
+
+/* ------------------ MENU SWITCH ------------------ */
+function switchMenu() {
+    document.getElementById("conversionSection").style.display =
+        (mainMenu.value === "conversion") ? "block" : "none";
+
+    document.getElementById("computeSection").style.display =
+        (mainMenu.value === "compute") ? "block" : "none";
+}
+
+/* ------------------ LOAD UNITS ------------------ */
+function loadUnitCategories() {
+    const category = document.getElementById("category");
+    category.innerHTML = "";
+
+    Object.keys(units).forEach(c =>
+        category.innerHTML += `<option>${c}</option>`
+    );
+
+    loadUnits();
+}
+
+function loadUnits() {
+    let cat = category.value;
+    let from = document.getElementById("unitFrom");
+    let to = document.getElementById("unitTo");
+
+    from.innerHTML = "";
+    to.innerHTML = "";
+
+    units[cat].forEach(u => {
+        from.innerHTML += `<option>${u}</option>`;
+        to.innerHTML += `<option>${u}</option>`;
+    });
+}
+
+loadUnitCategories();
+
+/* ------------------ CONVERSION ------------------ */
+function convert() {
+    let val = value.value;
+
+    if (val.trim() === "" || isNaN(val)) {
+        convResult.innerHTML = "Enter a valid number!";
+        return;
+    }
+
+    fetch("/convert", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            value: val,
+            category: category.value,
+            unitFrom: unitFrom.value,
+            unitTo: unitTo.value
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        convResult.innerHTML = `${val} ${unitFrom.value} = <b>${data.result} ${unitTo.value}</b>`;
+    });
+}
+
+/* ------------------ COMPUTE ------------------ */
+const forms = {
+    "F=ma": ["Mass (kg)", "Acceleration (m/s²)"],
+    "T=Fr": ["Force (N)", "Radius (m)"],
+    "σ=F/A": ["Force (N)", "Area (m²)"],
+    "P=Fv": ["Force (N)", "Velocity (m/s)"],
+    "W=Fd": ["Force (N)", "Distance (m)"],
+    "KE=1/2mv2": ["Mass (kg)", "Velocity (m/s)"],
+    "PE=mgh": ["Mass (kg)", "Gravity (m/s²)", "Height (m)"],
+    "a=F/m": ["Force (N)", "Mass (kg)"],
+    "w=v/r": ["Velocity (m/s)", "Radius (m)"],
+    "Fc=mv2/r": ["Mass (kg)", "Velocity (m/s)", "Radius (m)"]
+};
+
+function loadInputs() {
+    let formula = computeSelect.value;
+    let inputs = document.getElementById("inputs");
+
+    inputs.innerHTML = "<br>";
+
+    forms[formula].forEach((label, i) => {
+        inputs.innerHTML += `<label>${label}:</label>
+                             <input id="in${i}" /><br>`;
+    });
+}
+
+loadInputs();
+
+function compute() {
+    let formula = computeSelect.value;
+    let arr = [];
+
+    forms[formula].forEach((_, i) => {
+        arr.push(document.getElementById("in" + i).value);
+    });
+
+    fetch("/compute", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ formula: formula, values: arr })
+    })
+    .then(r => r.json())
+    .then(data => {
+        computeResult.innerHTML = `Result: <b>${data.result} ${data.unit}</b>`;
+    });
+}
+</script>
+
+</body>
+</html>
+
