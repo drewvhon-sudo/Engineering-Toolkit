@@ -1,68 +1,45 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Engineering Calculator</title>
-</head>
-<body>
-
-<h1>Engineering Calculator</h1>
-
-<h3>Unit Conversion</h3>
-
-Category:
-<select id="category">
-    <option>Length</option>
-    <option>Weight</option>
-    <option>Time</option>
-    <option>Area</option>
-    <option>Volume</option>
-    <option>Pressure</option>
-    <option>Energy</option>
-    <option>Speed</option>
-    <option>Temperature</option>
-</select>
-
-<br><br>
-
-Value:
-<input type="number" id="value">
-
-From:
-<select id="fromUnit"></select>
-
-To:
-<select id="toUnit"></select>
-
-<br><br>
-
-<button onclick="convert()">Convert</button>
-
-<h3 id="result"></h3>
-
 <script>
-// ------------------------------------
-// UNITS FOR DROPDOWN MENU
-// ------------------------------------
+/* ------------------ UNIT LISTS ------------------ */
 const units = {
-    "Length": ["m", "cm", "km", "in", "ft", "yd", "mile"],
-    "Weight": ["kg", "g", "lb", "oz"],
-    "Time": ["s", "min", "hr", "day"],
-    "Area": ["m2", "cm2", "km2", "acre"],
-    "Volume": ["L", "mL", "m3", "cm3", "gal"],
-    "Pressure": ["Pa", "kPa", "MPa", "GPa", "atm", "bar", "psi"],
-    "Energy": ["J", "kJ", "cal", "kcal"],
-    "Speed": ["m/s", "km/h", "mph"],
-    "Temperature": ["C", "F", "K"]
+    Length: ["m","cm","km","in","ft","yd","mile"],
+    Weight: ["kg","g","lb","oz"],
+    Temperature: ["C","F","K"],
+    Time: ["s","min","hr","day"],
+    Area: ["m2","cm2","km2","acre"],
+    Volume: ["L","mL","m3","cm3","gal"],
+    Pressure: ["Pa","kPa","MPa","GPa","atm","bar","psi"],
+    Energy: ["J","kJ","cal","kcal"],
+    Speed: ["m/s","km/h","mph"]
 };
 
-// Populate dropdowns when category changes
-document.getElementById("category").addEventListener("change", function () {
-    fillUnits(this.value);
-});
+/* ------------------ MENU SWITCH ------------------ */
+function switchMenu() {
+    const menu = document.getElementById("mainMenu");
 
-function fillUnits(cat) {
-    let from = document.getElementById("fromUnit");
-    let to = document.getElementById("toUnit");
+    document.getElementById("conversionSection").style.display =
+        menu.value === "conversion" ? "block" : "none";
+
+    document.getElementById("computeSection").style.display =
+        menu.value === "compute" ? "block" : "none";
+}
+
+/* ------------------ LOAD UNIT CATEGORIES ------------------ */
+function loadUnitCategories() {
+    const category = document.getElementById("category");
+    category.innerHTML = "";
+
+    Object.keys(units).forEach(c =>
+        category.innerHTML += `<option>${c}</option>`
+    );
+
+    loadUnits();
+}
+
+/* ------------------ LOAD UNITS ------------------ */
+function loadUnits() {
+    const cat = document.getElementById("category").value;
+    const from = document.getElementById("unitFrom");
+    const to = document.getElementById("unitTo");
 
     from.innerHTML = "";
     to.innerHTML = "";
@@ -73,29 +50,85 @@ function fillUnits(cat) {
     });
 }
 
-fillUnits("Length");
+loadUnitCategories();
 
-// ------------------------------------
-// SEND DATA TO FLASK /convert
-// ------------------------------------
+/* ------------------ CONVERSION ------------------ */
 function convert() {
+    const val = document.getElementById("value").value;
+    const categorySel = document.getElementById("category");
+    const unitFromSel = document.getElementById("unitFrom");
+    const unitToSel = document.getElementById("unitTo");
+    const convResult = document.getElementById("convResult");
+
+    if (val.trim() === "" || isNaN(val)) {
+        convResult.innerHTML = "Enter a valid number!";
+        return;
+    }
+
     fetch("/convert", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-            value: document.getElementById("value").value,
-            category: document.getElementById("category").value,
-            unitFrom: document.getElementById("fromUnit").value,
-            unitTo: document.getElementById("toUnit").value
+            value: val,
+            category: categorySel.value,
+            unitFrom: unitFromSel.value,
+            unitTo: unitToSel.value
         })
     })
-    .then(res => res.json())
+    .then(r => r.json())
     .then(data => {
-        document.getElementById("result").innerHTML =
-            "Result: " + data.result;
+        convResult.innerHTML =
+            `${val} ${unitFromSel.value} = <b>${data.result} ${unitToSel.value}</b>`;
+    });
+}
+
+/* ------------------ COMPUTE ------------------ */
+const forms = {
+    "F=ma": ["Mass (kg)", "Acceleration (m/s²)"],
+    "T=Fr": ["Force (N)", "Radius (m)"],
+    "σ=F/A": ["Force (N)", "Area (m²)"],
+    "P=Fv": ["Force (N)", "Velocity (m/s)"],
+    "W=Fd": ["Force (N)", "Distance (m)"],
+    "KE=1/2mv2": ["Mass (kg)", "Velocity (m/s)"],
+    "PE=mgh": ["Mass (kg)", "Gravity (m/s²)", "Height (m)"],
+    "a=F/m": ["Force (N)", "Mass (kg)"],
+    "w=v/r": ["Velocity (m/s)", "Radius (m)"],
+    "Fc=mv2/r": ["Mass (kg)", "Velocity (m/s)", "Radius (m)"]
+};
+
+function loadInputs() {
+    const formula = document.getElementById("computeSelect").value;
+    const inputs = document.getElementById("inputs");
+
+    inputs.innerHTML = "<br>";
+
+    forms[formula].forEach((label, i) => {
+        inputs.innerHTML += `
+            <label>${label}:</label>
+            <input id="in${i}"><br>
+        `;
+    });
+}
+
+loadInputs();
+
+function compute() {
+    const formula = document.getElementById("computeSelect").value;
+    const computeResult = document.getElementById("computeResult");
+
+    let arr = [];
+    forms[formula].forEach((_, i) => {
+        arr.push(document.getElementById("in" + i).value);
+    });
+
+    fetch("/compute", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ formula: formula, values: arr })
+    })
+    .then(r => r.json())
+    .then(data => {
+        computeResult.innerHTML = `Result: <b>${data.result} ${data.unit}</b>`;
     });
 }
 </script>
-
-</body>
-</html>
